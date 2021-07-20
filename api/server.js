@@ -1,6 +1,6 @@
+const path = require('path');
 const express = require("express");
 const helmet = require("helmet");
-const cors = require("cors");
 
 /**
   Do what needs to be done to support sessions with the `express-session` package!
@@ -14,15 +14,48 @@ const cors = require("cors");
   The session can be persisted in memory (would not be adecuate for production)
   or you can use a session store like `connect-session-knex`.
  */
+  const session = require('express-session');
+  const KnexSessionStore = require('connect-session-knex')(session);
+  
+  const UsersRouter = require('./users/users-router');
+  const AuthRouter = require('./auth/auth-router');
+  
+  const sessionConfig = {
+    name: 'chocolatechip',
+    secret: 'keep it secret, keep it safe!',
+    cookie: {
+      maxAge: 1000 * 60 * 60,
+      secure: false,
+      httpOnly: false,
+    },
+    rolling: true,
+    resave: false,
+    saveUninitialized: false,
+    store: new KnexSessionStore({
+      knex: require('../data/db-config.js'),
+      tablename: 'sessions',
+      sidfieldname: 'sid',
+      createtable: true,
+      clearInterval: 1000 * 60 * 60,
+    })
+  }
 
 const server = express();
 
+server.use(express.static(path.join(__dirname, '../client')));
+server.use(session(sessionConfig));
 server.use(helmet());
 server.use(express.json());
-server.use(cors());
+
+server.use('/api/users', UsersRouter);
+server.use('/api/auth', AuthRouter);
 
 server.get("/", (req, res) => {
-  res.json({ api: "up" });
+  res.sendFile(path.join(__dirname, '../client','index.html'));
+});
+
+server.use('*', (req, res) => {
+  res.status(404).json({ message: 'not found!' });
 });
 
 server.use((err, req, res, next) => { // eslint-disable-line
